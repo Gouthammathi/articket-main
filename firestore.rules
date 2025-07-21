@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is an admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Helper function to check if the ticket belongs to the user
+    function isTicketOwner(ticket) {
+      return isAuthenticated() && 
+        (ticket.customerId == request.auth.uid || ticket.customer == request.auth.token.email);
+    }
+
+    // Tickets collection rules
+    match /tickets/{ticketId} {
+      // Allow read if user is admin or ticket owner
+      allow read: if isAdmin() || isTicketOwner(resource.data);
+      
+      // Allow create if user is authenticated
+      allow create: if isAuthenticated();
+      
+      // Allow update if user is admin or ticket owner
+      allow update: if isAdmin() || isTicketOwner(resource.data);
+      
+      // Allow delete if user is admin
+      allow delete: if isAdmin();
+    }
+
+    // Admins collection rules
+    match /admins/{adminId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+} 

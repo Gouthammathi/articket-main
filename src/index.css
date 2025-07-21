@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+html {
+  font-size: 11px;
+}
+
+.ql-editor img {
+  max-width: 40px;
+  max-height: 40px;
+  height: 40px;
+  width: 40px;
+  display: inline-block;
+  border-radius: 0.5rem; /* rounded-lg */
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  object-fit: cover;
+  position: relative;
+  cursor: pointer;
+}
+
+.ql-image-preview-wrapper {
+  display: inline-block;
+  position: relative;
+}
+
+.ql-image-preview-btn {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 10px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.ql-image-preview-wrapper:hover .ql-image-preview-btn {
+  display: flex;
+}

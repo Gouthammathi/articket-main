@@ -1,0 +1,6 @@
+{
+    "rewrites": [
+      { "source": "/tickets/:ticketId", "destination": "/" },
+      { "source": "/(.*)", "destination": "/" }
+    ]
+  }
