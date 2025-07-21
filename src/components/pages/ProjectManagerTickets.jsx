@@ -47,6 +47,7 @@ const ProjectManagerTickets = ({ setActiveTab, selectedProjectId, selectedProjec
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [quickDate, setQuickDate] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
  
   useEffect(() => {
     // Guard: skip effect if required props are missing
@@ -199,9 +200,17 @@ const ProjectManagerTickets = ({ setActiveTab, selectedProjectId, selectedProjec
     if (setViewingTicket) setViewingTicket(false);
   };
  
+  const showToast = (message, type = 'error') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type }), 2500);
+  };
+ 
   const handleAssignTicket = async (ticketId, selectedUserEmail) => {
     const ticket = ticketsData.find(t => t.id === ticketId);
-    if (!ticketId || !auth.currentUser || !selectedUserEmail || !ticket) return;
+    if (!ticketId || !auth.currentUser || !selectedUserEmail || !ticket) {
+      showToast('Missing required data for assignment.', 'error');
+      return;
+    }
 
     const ticketRef = doc(db, 'tickets', ticketId);
     let assignee = employees.find(emp => emp.email === selectedUserEmail) || clients.find(c => c.email === selectedUserEmail);
@@ -232,53 +241,67 @@ const ProjectManagerTickets = ({ setActiveTab, selectedProjectId, selectedProjec
         };
       }
     }
-    if (!assignee) return;
+    if (!assignee) {
+      showToast('No assignee found.', 'error');
+      return;
+    }
     const assignerUsername = currentUserEmail.split('@')[0];
 
-    await updateDoc(ticketRef, {
-      assignedTo: { name: assignee.name || assignee.email || 'Unknown', email: assignee.email },
-      assignedBy: assignerUsername,
-      status: 'In Progress',
-      lastUpdated: serverTimestamp()
-    });
-
-    const response = {
-      message: `Ticket assigned to ${assignee.name} by ${assignerUsername}.`,
-      timestamp: new Date().toISOString(),
-      authorEmail: 'system',
-      authorRole: 'system',
-    };
-    await updateDoc(ticketRef, {
-      customerResponses: arrayUnion(response)
-    });
-
-    // Fetch the user object for reportedBy or ticket.email to get the correct recipient name
-    let recipientEmail = ticket.reportedBy || ticket.email;
-    let recipientName = recipientEmail;
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', recipientEmail));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const userData = snapshot.docs[0].data();
-        recipientName = (userData.firstName && userData.lastName)
-          ? `${userData.firstName} ${userData.lastName}`.trim()
-          : (userData.firstName || userData.lastName || userData.email);
-      }
-    } catch (e) { /* fallback to email */ }
+      await updateDoc(ticketRef, {
+        assignedTo: { name: assignee.name || assignee.email || 'Unknown', email: assignee.email },
+        assignedBy: assignerUsername,
+        status: 'In Progress',
+        lastUpdated: serverTimestamp()
+      });
 
-    const emailParams = {
-      to_email: recipientEmail,
-      to_name: recipientName,
-      subject: ticket.subject,
-      ticket_number: ticket.ticketNumber,
-      assigned_to: assignee.name || assignee.email || 'Unknown',
-      project: selectedProjectName,
-      category: ticket.category,
-      priority: ticket.priority,
-      ticket_link: `https://articket.vercel.app/tickets/${ticket.id}`,
-    };
-    await sendEmail(emailParams, 'template_igl3oxn');
+      const response = {
+        message: `Ticket assigned to ${assignee.name} by ${assignerUsername}.`,
+        timestamp: new Date().toISOString(),
+        authorEmail: 'system',
+        authorRole: 'system',
+      };
+      await updateDoc(ticketRef, {
+        customerResponses: arrayUnion(response)
+      });
+
+      // Fetch the user object for reportedBy or ticket.email to get the correct recipient name
+      let recipientEmail = ticket.reportedBy || ticket.email;
+      let recipientName = recipientEmail;
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', recipientEmail));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const userData = snapshot.docs[0].data();
+          recipientName = (userData.firstName && userData.lastName)
+            ? `${userData.firstName} ${userData.lastName}`.trim()
+            : (userData.firstName || userData.lastName || userData.email);
+        }
+      } catch (e) { /* fallback to email */ }
+
+      const emailParams = {
+        to_email: recipientEmail,
+        to_name: recipientName,
+        subject: ticket.subject,
+        ticket_number: ticket.ticketNumber,
+        assigned_to: assignee.name || assignee.email || 'Unknown',
+        project: selectedProjectName,
+        category: ticket.category,
+        priority: ticket.priority,
+        ticket_link: `https://articket.vercel.app/tickets/${ticket.id}`,
+      };
+      console.log('[DEBUG] About to send assignment email with params:', emailParams);
+      const emailResult = await sendEmail(emailParams, 'template_igl3oxn');
+      if (emailResult === false) {
+        showToast('Assignment succeeded, but failed to send email notification.', 'error');
+      } else {
+        showToast('Ticket assigned and email sent successfully.', 'success');
+      }
+    } catch (err) {
+      showToast('Failed to assign ticket or send email. Please try again.', 'error');
+      console.error('[ERROR] Assignment or email failed:', err);
+    }
   };
  
   // Add this function to allow unassigning a ticket
@@ -864,6 +887,14 @@ const ProjectManagerTickets = ({ setActiveTab, selectedProjectId, selectedProjec
         <div className="text-gray-400 text-center py-12">No tickets found for selected filters.</div>
       ) : (
         <div className="text-gray-400 text-center py-12">Select filters and click 'Apply Filters' to view tickets.</div>
+      )}
+      {toast.show && (
+        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 p-4 rounded-xl shadow-lg transition-all duration-300 z-[9999] ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+        >
+          <div className="flex items-center space-x-2 text-white">
+            <span>{toast.message}</span>
+          </div>
+        </div>
       )}
     </>
   );

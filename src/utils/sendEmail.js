@@ -36,11 +36,11 @@ export const sendEmail = async (params, templateId) => {
   // };
  
   try {
-    await emailjs.send(SERVICE_ID, templateId, params, PUBLIC_KEY);
-    console.log('[DEBUG] sendEmail success');
+    const result = await emailjs.send(SERVICE_ID, templateId, params, PUBLIC_KEY);
+    console.log('[DEBUG] sendEmail success:', result);
     return true;
   } catch (error) {
-    console.error('Failed to send email:', error);
+    console.error('[ERROR] Failed to send email:', error, 'Params:', params);
     return false;
   }
 };

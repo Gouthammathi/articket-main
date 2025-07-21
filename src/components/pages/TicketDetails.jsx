@@ -539,7 +539,26 @@ const TicketDetails = ({ ticketId, onBack, onAssign }) => {
       // Debug log for assignment
       if (onlyAssigneeChanged) {
         console.log('[DEBUG] handleSaveDetails: onlyAssigneeChanged', { ticketId: ticket.id, updates, selectedAssignee });
-        await onAssign(ticket.id, updates.assignedTo.email);
+        try {
+          await onAssign(ticket.id, updates.assignedTo.email);
+          // Force refresh ticket after assignment
+          const updatedTicketSnap = await getDoc(ticketRef);
+          if (updatedTicketSnap.exists()) {
+            const ticketData = { id: updatedTicketSnap.id, ...updatedTicketSnap.data() };
+            let comments = ticketData.comments || [];
+            comments.sort((a, b) => {
+              const ta = a.timestamp?.seconds ? a.timestamp.seconds : (a.timestamp?._seconds || new Date(a.timestamp).getTime()/1000 || 0);
+              const tb = b.timestamp?.seconds ? b.timestamp.seconds : (b.timestamp?._seconds || new Date(b.timestamp).getTime()/1000 || 0);
+              return ta - tb;
+            });
+            setTicket({ ...ticketData, comments });
+            setSelectedAssignee(ticketData.assignedTo?.email || '');
+          }
+          showToast('Ticket assigned successfully.', 'success');
+        } catch (err) {
+          showToast('Failed to assign ticket or send email. Please try again.', 'error');
+          console.error('[ERROR] Assignment or email failed:', err);
+        }
         setIsSaving(false);
         return;
       }
